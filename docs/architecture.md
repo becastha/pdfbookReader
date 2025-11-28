@@ -2,6 +2,7 @@
 
 ## Frontend
 
+```
 frontend/
 ├── public/
 │   └── index.html
@@ -37,6 +38,7 @@ frontend/
 │   └── main.jsx
 ├── package.json
 └── vite.config.js
+```
 
 ## Backend 
 
