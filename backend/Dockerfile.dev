@@ -1,0 +1,26 @@
+FROM golang:1.24.10-alpine
+
+# install development tools
+# install air for hot reloading
+# set workdirectory
+# copy go mod files
+# copy source code
+# create storage directories
+# expose ports
+# use air for hot reloading 
+
+RUN apk add --no-cache git make gcc musl-dev
+RUN go install github.com/cosmtrek/air@latest
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+RUN mkdir -p storage/pdfs storage/thumbnails
+
+EXPOSE 8080
+
+CMD [ "air","-c","air.toml" ]
