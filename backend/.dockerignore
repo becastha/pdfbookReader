@@ -1,0 +1,38 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+server
+tmp/
+
+# Test files
+*_test.go
+*.test
+*.out
+coverage.txt
+
+# Development
+.env
+.env.local
+.vscode/
+.idea/
+
+# Storage (will use volumes)
+storage/
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+docs/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
