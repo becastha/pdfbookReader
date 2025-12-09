@@ -1,0 +1,927 @@
+openapi: 3.0.3
+info:
+  title: PDF Reader API
+  description: |
+    A full-stack PDF reader application backend API that provides endpoints for:
+    - PDF file upload and management
+    - PDF serving and viewing
+    - Reading progress tracking
+    - Thumbnail generation
+    - Health monitoring
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@pdfreader.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Development server
+  - url: https://api.pdfreader.com/v1
+    description: Production server
+
+tags:
+  - name: PDFs
+    description: PDF file management operations
+  - name: Progress
+    description: Reading progress tracking
+  - name: Health
+    description: System health monitoring
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check endpoint
+      description: Returns the health status of the API and its dependencies
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                healthy:
+                  value:
+                    status: "healthy"
+                    timestamp: "2024-12-09T10:30:00Z"
+                    services:
+                      database: "connected"
+                      storage: "available"
+        '503':
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                unhealthy:
+                  value:
+                    status: "unhealthy"
+                    timestamp: "2024-12-09T10:30:00Z"
+                    services:
+                      database: "disconnected"
+                      storage: "available"
+
+  /pdfs:
+    get:
+      tags:
+        - PDFs
+      summary: List all PDFs
+      description: Retrieve a paginated list of all uploaded PDF files
+      operationId: listPDFs
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Number of items per page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: sort
+          in: query
+          description: Sort order for results
+          required: false
+          schema:
+            type: string
+            enum: [created_asc, created_desc, title_asc, title_desc, size_asc, size_desc]
+            default: created_desc
+        - name: search
+          in: query
+          description: Search PDFs by title or filename
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of PDFs retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PDFListResponse'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      tags:
+        - PDFs
+      summary: Upload a PDF file
+      description: Upload a new PDF file to the system. File size limit is 50MB.
+      operationId: uploadPDF
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: PDF file to upload (max 50MB)
+                title:
+                  type: string
+                  description: Optional title for the PDF
+                  maxLength: 255
+                  example: "My Research Paper"
+                tags:
+                  type: array
+                  items:
+                    type: string
+                  description: Optional tags for categorization
+                  example: ["research", "science", "2024"]
+            encoding:
+              file:
+                contentType: application/pdf
+      responses:
+        '201':
+          description: PDF uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PDFUploadResponse'
+        '400':
+          description: Invalid file or request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidFileType:
+                  value:
+                    error: "Invalid file type. Only PDF files are allowed"
+                    code: "INVALID_FILE_TYPE"
+                fileTooLarge:
+                  value:
+                    error: "File size exceeds 50MB limit"
+                    code: "FILE_TOO_LARGE"
+                corruptedFile:
+                  value:
+                    error: "PDF file is corrupted or invalid"
+                    code: "INVALID_PDF"
+        '413':
+          description: Payload too large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /pdfs/{pdfId}:
+    get:
+      tags:
+        - PDFs
+      summary: Get PDF metadata
+      description: Retrieve detailed metadata for a specific PDF
+      operationId: getPDFMetadata
+      parameters:
+        - name: pdfId
+          in: path
+          required: true
+          description: Unique identifier of the PDF
+          schema:
+            type: string
+            format: uuid
+            example: "123e4567-e89b-12d3-a456-426614174000"
+      responses:
+        '200':
+          description: PDF metadata retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PDF'
+        '404':
+          description: PDF not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - PDFs
+      summary: Delete a PDF
+      description: Permanently delete a PDF file and its associated data
+      operationId: deletePDF
+      parameters:
+        - name: pdfId
+          in: path
+          required: true
+          description: Unique identifier of the PDF
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: PDF deleted successfully
+        '404':
+          description: PDF not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    patch:
+      tags:
+        - PDFs
+      summary: Update PDF metadata
+      description: Update metadata like title and tags for a PDF
+      operationId: updatePDFMetadata
+      parameters:
+        - name: pdfId
+          in: path
+          required: true
+          description: Unique identifier of the PDF
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  maxLength: 255
+                  example: "Updated Title"
+                tags:
+                  type: array
+                  items:
+                    type: string
+                  example: ["updated", "important"]
+      responses:
+        '200':
+          description: PDF metadata updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PDF'
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: PDF not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /pdfs/{pdfId}/download:
+    get:
+      tags:
+        - PDFs
+      summary: Download PDF file
+      description: Download the actual PDF file
+      operationId: downloadPDF
+      parameters:
+        - name: pdfId
+          in: path
+          required: true
+          description: Unique identifier of the PDF
+          schema:
+            type: string
+            format: uuid
+        - name: inline
+          in: query
+          description: Whether to display inline in browser (true) or download (false)
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: PDF file
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              description: Attachment or inline display
+              schema:
+                type: string
+                example: "attachment; filename=document.pdf"
+            Content-Length:
+              description: Size of the PDF file in bytes
+              schema:
+                type: integer
+            Cache-Control:
+              description: Caching directive
+              schema:
+                type: string
+                example: "public, max-age=3600"
+        '404':
+          description: PDF not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /pdfs/{pdfId}/thumbnail:
+    get:
+      tags:
+        - PDFs
+      summary: Get PDF thumbnail
+      description: Retrieve a thumbnail image of the PDF's first page
+      operationId: getPDFThumbnail
+      parameters:
+        - name: pdfId
+          in: path
+          required: true
+          description: Unique identifier of the PDF
+          schema:
+            type: string
+            format: uuid
+        - name: width
+          in: query
+          description: Desired thumbnail width in pixels
+          required: false
+          schema:
+            type: integer
+            minimum: 50
+            maximum: 500
+            default: 200
+        - name: height
+          in: query
+          description: Desired thumbnail height in pixels
+          required: false
+          schema:
+            type: integer
+            minimum: 50
+            maximum: 700
+            default: 280
+      responses:
+        '200':
+          description: Thumbnail image
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Cache-Control:
+              description: Caching directive
+              schema:
+                type: string
+                example: "public, max-age=86400"
+        '404':
+          description: PDF or thumbnail not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /pdfs/{pdfId}/pages:
+    get:
+      tags:
+        - PDFs
+      summary: Get PDF pages information
+      description: Retrieve information about all pages in the PDF
+      operationId: getPDFPages
+      parameters:
+        - name: pdfId
+          in: path
+          required: true
+          description: Unique identifier of the PDF
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Pages information retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pdf_id:
+                    type: string
+                    format: uuid
+                  total_pages:
+                    type: integer
+                    example: 150
+                  pages:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        page_number:
+                          type: integer
+                          example: 1
+                        width:
+                          type: number
+                          format: float
+                          example: 612.0
+                        height:
+                          type: number
+                          format: float
+                          example: 792.0
+        '404':
+          description: PDF not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /pdfs/{pdfId}/progress:
+    get:
+      tags:
+        - Progress
+      summary: Get reading progress
+      description: Retrieve the current reading progress for a PDF
+      operationId: getReadingProgress
+      parameters:
+        - name: pdfId
+          in: path
+          required: true
+          description: Unique identifier of the PDF
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Reading progress retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadingProgress'
+        '404':
+          description: PDF or progress not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      tags:
+        - Progress
+      summary: Update reading progress
+      description: Save or update the current reading progress for a PDF
+      operationId: updateReadingProgress
+      parameters:
+        - name: pdfId
+          in: path
+          required: true
+          description: Unique identifier of the PDF
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - current_page
+              properties:
+                current_page:
+                  type: integer
+                  minimum: 1
+                  description: Current page number being read
+                  example: 42
+                scroll_position:
+                  type: number
+                  format: float
+                  minimum: 0
+                  maximum: 1
+                  description: Scroll position within the page (0.0 to 1.0)
+                  example: 0.35
+                last_read_at:
+                  type: string
+                  format: date-time
+                  description: Timestamp of last read (optional, defaults to now)
+                  example: "2024-12-09T10:30:00Z"
+      responses:
+        '200':
+          description: Progress updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadingProgress'
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: PDF not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - Progress
+      summary: Reset reading progress
+      description: Delete/reset the reading progress for a PDF
+      operationId: deleteReadingProgress
+      parameters:
+        - name: pdfId
+          in: path
+          required: true
+          description: Unique identifier of the PDF
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Progress reset successfully
+        '404':
+          description: PDF not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /progress:
+    get:
+      tags:
+        - Progress
+      summary: Get all reading progress
+      description: Retrieve reading progress for all PDFs
+      operationId: getAllReadingProgress
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Number of items per page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Progress list retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  progress:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ReadingProgress'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    PDF:
+      type: object
+      required:
+        - id
+        - filename
+        - title
+        - file_size
+        - total_pages
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the PDF
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        filename:
+          type: string
+          description: Original filename of the uploaded PDF
+          example: "research-paper.pdf"
+        title:
+          type: string
+          description: Display title for the PDF
+          example: "Research on AI"
+        file_size:
+          type: integer
+          format: int64
+          description: File size in bytes
+          example: 2048576
+        mime_type:
+          type: string
+          description: MIME type of the file
+          example: "application/pdf"
+        total_pages:
+          type: integer
+          description: Total number of pages in the PDF
+          example: 150
+        thumbnail_url:
+          type: string
+          format: uri
+          description: URL to the PDF thumbnail
+          example: "/api/v1/pdfs/123e4567-e89b-12d3-a456-426614174000/thumbnail"
+        download_url:
+          type: string
+          format: uri
+          description: URL to download the PDF
+          example: "/api/v1/pdfs/123e4567-e89b-12d3-a456-426614174000/download"
+        tags:
+          type: array
+          items:
+            type: string
+          description: Tags for categorization
+          example: ["research", "ai", "2024"]
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the PDF was uploaded
+          example: "2024-12-09T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp when the PDF metadata was last updated
+          example: "2024-12-09T10:30:00Z"
+
+    ReadingProgress:
+      type: object
+      required:
+        - pdf_id
+        - current_page
+        - total_pages
+        - updated_at
+      properties:
+        pdf_id:
+          type: string
+          format: uuid
+          description: Unique identifier of the PDF
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        current_page:
+          type: integer
+          minimum: 1
+          description: Current page being read
+          example: 42
+        total_pages:
+          type: integer
+          description: Total pages in the PDF
+          example: 150
+        scroll_position:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: Scroll position within current page (0.0 to 1.0)
+          example: 0.35
+        progress_percentage:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+          description: Overall reading progress percentage
+          example: 28.0
+        last_read_at:
+          type: string
+          format: date-time
+          description: Timestamp of last read activity
+          example: "2024-12-09T10:30:00Z"
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when progress tracking started
+          example: "2024-12-09T09:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp when progress was last updated
+          example: "2024-12-09T10:30:00Z"
+
+    PDFListResponse:
+      type: object
+      required:
+        - pdfs
+        - pagination
+      properties:
+        pdfs:
+          type: array
+          items:
+            $ref: '#/components/schemas/PDF'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    PDFUploadResponse:
+      type: object
+      required:
+        - message
+        - pdf
+      properties:
+        message:
+          type: string
+          example: "PDF uploaded successfully"
+        pdf:
+          $ref: '#/components/schemas/PDF'
+
+    Pagination:
+      type: object
+      required:
+        - page
+        - limit
+        - total_items
+        - total_pages
+      properties:
+        page:
+          type: integer
+          description: Current page number
+          example: 1
+        limit:
+          type: integer
+          description: Items per page
+          example: 20
+        total_items:
+          type: integer
+          description: Total number of items
+          example: 150
+        total_pages:
+          type: integer
+          description: Total number of pages
+          example: 8
+        has_next:
+          type: boolean
+          description: Whether there is a next page
+          example: true
+        has_previous:
+          type: boolean
+          description: Whether there is a previous page
+          example: false
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy, degraded]
+          description: Overall health status
+          example: "healthy"
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of health check
+          example: "2024-12-09T10:30:00Z"
+        services:
+          type: object
+          description: Health status of individual services
+          properties:
+            database:
+              type: string
+              enum: [connected, disconnected, degraded]
+              example: "connected"
+            storage:
+              type: string
+              enum: [available, unavailable, degraded]
+              example: "available"
+        version:
+          type: string
+          description: API version
+          example: "1.0.0"
+        uptime:
+          type: integer
+          format: int64
+          description: Server uptime in seconds
+          example: 3600
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - code
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+          example: "PDF file not found"
+        code:
+          type: string
+          description: Machine-readable error code
+          example: "PDF_NOT_FOUND"
+        details:
+          type: object
+          description: Additional error details
+          additionalProperties: true
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the error
+          example: "2024-12-09T10:30:00Z"
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authentication
+
+security:
+  - bearerAuth: []
