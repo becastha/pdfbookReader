@@ -1,4 +1,4 @@
-module github.com/becas/pdfBookReader/backend
+module github.com/becas/pdfbookReader/backend
 
 go 1.24.10
 
