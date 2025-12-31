@@ -45,8 +45,7 @@ frontend/
 ```
 backend/
 ├── cmd/
-│   └── server/
-│       └── main.go                    # Application entry point
+│   └── main.go                        # Application entry point
 ├── internal/
 │   ├── handlers/                      # HTTP request handlers
 │   │   ├── pdf_handler.go             # PDF upload/serve endpoints
