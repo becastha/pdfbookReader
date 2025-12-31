@@ -37,7 +37,7 @@ func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // health handles GET /health
-func (router *Router) health(w http.ResponseWriter, r *http.Request) {
+func (router *Router) health(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	response := map[string]string{
