@@ -45,9 +45,7 @@ frontend/
 ```
 backend/
 ├── cmd/
-│   └── server/
-│       └── main.go
-│
+│   └── main.go                        # Application entry point
 ├── internal/
 │   ├── handlers/                      # HTTP layer 
 │   │   ├── document_handler.go        # CRUD for documents
